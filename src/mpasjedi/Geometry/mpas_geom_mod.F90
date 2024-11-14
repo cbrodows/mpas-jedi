@@ -190,15 +190,18 @@ subroutine geo_setup(self, f_conf, f_comm)
 #endif
 
    ! Domain decomposition and templates for state/increment variables
+   call fckit_log%info('CMB: calling mpas_init')
    call mpas_init( self % corelist, self % domain, external_comm = self%f_comm%communicator(), &
                  & namelistFileParam = trim(nml_file), streamsFileParam = trim(streams_file))
 
    !Deallocate not-used fields for memory reduction
+   call fckit_log%info('CMB: deallocate not-used')
    call f_conf%get_or_die("deallocate non-da fields",deallocate_fields)
    self % deallocate_nonda_fields = deallocate_fields
    if (self % deallocate_nonda_fields) call geo_deallocate_nonda_fields (f_conf, self % domain)
 
    ! Set up the vertical coordinate for bump
+   call fckit_log%info('CMB: set up vertical coordinate for bump')
    call f_conf%get_or_die("bump vunit",str)
    self % bump_vunit = str
 
@@ -223,12 +226,14 @@ subroutine geo_setup(self, f_conf, f_comm)
    geom_count(nprev+1)%counter = 1
 
    ! first read array of templated field configurations
+   call fckit_log%info('CMB: first read array of templated field configurations')
    call f_conf%get_or_die('template fields file',str)
    fields_file = str
    template_conf = fckit_YAMLConfiguration(fckit_pathname(fields_file))
    call template_conf%get_or_die('fields',fields_conf)
 
    ! create templated field descriptors
+   call fckit_log%info('CMB: create templated field descriptors')
    allocate(self%templated_fields(size(fields_conf)))
    do ii = 1, size(fields_conf)
       call fields_conf(ii)%get_or_die('field name',str)
@@ -244,6 +249,7 @@ subroutine geo_setup(self, f_conf, f_comm)
    deallocate(fields_conf)
 
   ! retrieve iterator dimension from config
+  call fckit_log%info('CMB: retrieve iterator dimension from config')
   if ( .not. f_conf%get("iterator dimension", self%iterator_dimension) ) &
       self%iterator_dimension = 2
 
@@ -276,8 +282,9 @@ subroutine geo_setup(self, f_conf, f_comm)
 !   end if
 
    !  These pool accesses refer to memory (local+halo) for a single MPAS block (standard)
+   call fckit_log%info('CMB: these pool accesses refer to memory for a single MPAS block')
    block_ptr => self % domain % blocklist
-
+   call fckit_log%info('CMB: get subpool meshpool')
    call mpas_pool_get_subpool ( block_ptr % structs, 'mesh', meshPool )
 
    call mpas_pool_get_dimension ( block_ptr % dimensions, 'nCells', i0d_ptr )
@@ -311,7 +318,7 @@ subroutine geo_setup(self, f_conf, f_comm)
    self % vertexDegree = i0d_ptr
    call mpas_pool_get_dimension ( block_ptr % dimensions, 'maxEdges', i0d_ptr )
    self % maxEdges = i0d_ptr
-
+   call fckit_log%info('CMB: starting to allocate')
    allocate ( self % latCell ( self % nCells ) )
    allocate ( self % lonCell ( self % nCells ) )
    allocate ( self % latEdge ( self % nEdges ) )
@@ -333,7 +340,7 @@ subroutine geo_setup(self, f_conf, f_comm)
    allocate ( self % edgesOnCell_sign ( self % maxEdges, self % nCells ) )
    allocate ( self % areaTriangle ( self % nVertices ) )
    allocate ( self % angleEdge ( self % nEdges ) )
-
+   call fckit_log%info('CMB: getting mpas_pool_array for latCell')
    call mpas_pool_get_array ( meshPool, 'latCell', r1d_ptr )
    self % latCell = r1d_ptr(1:self % nCells)
    where (self % latCell > MPAS_JEDI_PIIo2_kr)
@@ -342,7 +349,7 @@ subroutine geo_setup(self, f_conf, f_comm)
    where (self % latCell < - MPAS_JEDI_PIIo2_kr)
        self % latCell = - MPAS_JEDI_PIIo2_kr
    end where
-
+   call fckit_log%info('CMB: getting for lonCell...')
    call mpas_pool_get_array ( meshPool, 'lonCell', r1d_ptr )
    self % lonCell = r1d_ptr(1:self % nCells)
    call mpas_pool_get_array ( meshPool, 'areaCell', r1d_ptr )
@@ -377,13 +384,13 @@ subroutine geo_setup(self, f_conf, f_comm)
    self % areaTriangle = r1d_ptr(1:self % nVertices)
    call mpas_pool_get_array ( meshPool, 'angleEdge', r1d_ptr )           
    self % angleEdge = r1d_ptr(1:self % nEdges)
-
+   call fckit_log%info('CMB: getting zgrid')
    call mpas_pool_get_array ( meshPool, 'zgrid', r2d_ptr )
    self % zgrid = r2d_ptr ( 1:self % nVertLevelsP1, 1:self % nCells )
 
    call self%full_to_half(self % zgrid, self % height, self % nCells)
 
-
+   call fckit_log%info('CMB: made it to end of geo setup')
    call fckit_log%debug('End of geo_setup')
    if (allocated(prev_count)) deallocate(prev_count)
    if (allocated(str)) deallocate(str)
